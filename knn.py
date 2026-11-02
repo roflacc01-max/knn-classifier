@@ -1,10 +1,16 @@
 import math
 import json
-DATA_FILE = "data.json"
+import csv
 from collections import Counter
+
+DATA_FILE = "data.json"
+CSV_FILE = "data.csv"
 
 
 def read_point(prompt):
+    """
+    Запрашивает координаты точки, возвращает кортеж (x, y).
+    """
     while True:
         try:
             x = float(input(f"{prompt} по оси x: "))
@@ -15,6 +21,10 @@ def read_point(prompt):
 
 
 def collect_points():
+    """
+    Диалог ввода обучающих точек.
+    Возвращает словарь структуры (1).
+    """
     data = {}
 
     while True:
@@ -25,10 +35,6 @@ def collect_points():
         if label not in data:
             data[label] = []
         data[label].append(point)
-        if len(data) >= 2:
-            all_points_count = sum(len(points) for points in data.values())
-            if all_points_count >= 6 and all(len(points) >= 3 for points in data.values()):
-                pass
 
         while True:
             cont = input("Добавить ещё одну точку? (y — да, любой другой символ — нет): ").strip().lower()
@@ -47,6 +53,9 @@ def collect_points():
 
 
 def read_k(total):
+    """
+    Запрашивает k, проверяя условие 1 <= k <= total.
+    """
     while True:
         try:
             k = int(input(f"Введите количество ближайших соседей k (1..{total}): "))
@@ -59,26 +68,41 @@ def read_k(total):
 
 
 def distance(p1, p2):
+    """
+    Евклидово расстояние между двумя кортежами координат.
+    Для сравнения используем квадрат расстояния (без извлечения корня).
+    """
     return (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2
 
 
 def neighbours(data, point, k):
+    """
+    k ближайших соседей: список [(квадрат_расстояния, метка, координаты), ...],
+    отсортированный по возрастанию расстояния.
+    """
     distances = []
     for label, points in data.items():
         for p in points:
             dist = distance(point, p)
             distances.append((dist, label, p))
+
     distances.sort(key=lambda x: x[0])
     return distances[:k]
 
 
 def predict(data, point, k):
+    """
+    Предсказанная метка класса для точки point.
+    """
     nearest = neighbours(data, point, k)
+
     votes = Counter()
     for dist, label, p in nearest:
         votes[label] += 1
+
     max_votes = max(votes.values())
     candidates = [label for label, count in votes.items() if count == max_votes]
+
     if len(candidates) > 1:
         min_dist = float('inf')
         winner = candidates[0]
@@ -89,6 +113,9 @@ def predict(data, point, k):
         return winner
     else:
         return candidates[0]
+
+
+# --- ФУНКЦИИ СОХРАНЕНИЯ И ЗАГРУЗКИ (Этап 3) ---
 
 def save_data(data, path):
     """Сохраняет выборку в JSON-файл."""
@@ -108,33 +135,65 @@ def load_data(path):
     return {label: [tuple(p) for p in points]
             for label, points in raw.items()}
 
+
+# --- ФУНКЦИЯ ЭКСПОРТА В CSV (Вариант 6) ---
+
+def export_to_csv(data, path):
+    """Сохраняет выборку в CSV: по строке на точку — x, y, метка."""
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["x", "y", "label"])  # заголовок
+        for label, points in data.items():
+            for x, y in points:
+                writer.writerow([x, y, label])
+
+
 def main():
-    def main():
-        """Точка входа: ввод данных, классификация, вывод результата."""
-        data = load_data(DATA_FILE)
-        if data is not None:
-            total = sum(len(p) for p in data.values())
-            answer = input(f"Найдена сохранённая выборка ({total} точек). "
-                           "Использовать? (y/n): ")
-            if answer.strip().lower() != "y":
-                data = None
+    """
+    Точка входа: ввод данных, классификация, вывод результата.
+    """
+    print("=== Сбор обучающей выборки ===")
 
-        if data is None:
-            data = collect_points()
-            save_data(data, DATA_FILE)
-
+    # Пытаемся загрузить сохраненную выборку
+    data = load_data(DATA_FILE)
+    if data is not None:
         total = sum(len(p) for p in data.values())
-        print(f"Введено {total} точек, метки классов: "
-              f"{', '.join(sorted(set(data)))}")
+        answer = input(f"Найдена сохранённая выборка ({total} точек). Использовать? (y/n): ")
+        if answer.strip().lower() != "y":
+            data = None
 
-        unknown = read_point("Введите координаты точки неизвестного класса")
-        k = read_k(total)
+    # Если выборки нет, вводим вручную и сохраняем
+    if data is None:
+        data = collect_points()
+        save_data(data, DATA_FILE)
 
-        print(f"Ближайшие соседи точки {unknown}:")
-        for d, label, p in neighbours(data, unknown, k):
-            print(f"  ({p[0]:.1f}, {p[1]:.1f})  расстояние {math.sqrt(d):.2f}  метка {label}")
+    # Экспортируем в CSV (Индивидуальное задание)
+    export_to_csv(data, CSV_FILE)
 
-        print("Предсказанная метка класса:", predict(data, unknown, k))
+    total = sum(len(p) for p in data.values())
+    print(f"\nВведено {total} точек, метки классов: {', '.join(sorted(set(data)))}")
+    print(f"Выборка экспортирована в {CSV_FILE}")
+
+    print("\n=== Классификация неизвестной точки ===")
+    point = read_point("Введите координаты точки неизвестного класса")
+
+    k = read_k(total)
+
+    nearest = neighbours(data, point, k)
+
+    print(f"\nБлижайшие соседи точки ({point[0]:.1f}, {point[1]:.1f}):")
+    for dist_sq, label, p in nearest:
+        print(f"({p[0]:.1f}, {p[1]:.1f})  расстояние {math.sqrt(dist_sq):.2f}  метка {label}")
+
+    votes = Counter()
+    for dist_sq, label, p in nearest:
+        votes[label] += 1
+
+    votes_str = ', '.join([f"{label} – {count}" for label, count in votes.items()])
+    print(f"\nГолоса: {votes_str}")
+
+    result = predict(data, point, k)
+    print(f"Предсказанная метка класса: {result}")
 
 
 if __name__ == '__main__':
