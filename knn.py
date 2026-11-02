@@ -1,4 +1,5 @@
 import math
+import json
 from collections import Counter
 
 
@@ -88,6 +89,23 @@ def predict(data, point, k):
     else:
         return candidates[0]
 
+def save_data(data, path):
+    """Сохраняет выборку в JSON-файл."""
+    plain = {label: [list(p) for p in points]
+             for label, points in data.items()}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(plain, f, ensure_ascii=False)
+
+
+def load_data(path):
+    """Читает выборку из файла; None, если файла нет или он повреждён."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    return {label: [tuple(p) for p in points]
+            for label, points in raw.items()}
 
 def main():
     print("Сбор выборки")
