@@ -1,5 +1,6 @@
 import math
 import json
+DATA_FILE = "data.json"
 from collections import Counter
 
 
@@ -108,33 +109,32 @@ def load_data(path):
             for label, points in raw.items()}
 
 def main():
-    print("Сбор выборки")
-    data = collect_points()
+    def main():
+        """Точка входа: ввод данных, классификация, вывод результата."""
+        data = load_data(DATA_FILE)
+        if data is not None:
+            total = sum(len(p) for p in data.values())
+            answer = input(f"Найдена сохранённая выборка ({total} точек). "
+                           "Использовать? (y/n): ")
+            if answer.strip().lower() != "y":
+                data = None
 
-    total_points = sum(len(points) for points in data.values())
-    labels = set(data.keys())
-    print(f"\nВведено {total_points} точек, метки классов: {', '.join(sorted(labels))}")
+        if data is None:
+            data = collect_points()
+            save_data(data, DATA_FILE)
 
-    print("\nКлассификация неизвестной точки")
-    point = read_point("Введите координаты точки неизвестного класса")
+        total = sum(len(p) for p in data.values())
+        print(f"Введено {total} точек, метки классов: "
+              f"{', '.join(sorted(set(data)))}")
 
-    k = read_k(total_points)
+        unknown = read_point("Введите координаты точки неизвестного класса")
+        k = read_k(total)
 
-    nearest = neighbours(data, point, k)
+        print(f"Ближайшие соседи точки {unknown}:")
+        for d, label, p in neighbours(data, unknown, k):
+            print(f"  ({p[0]:.1f}, {p[1]:.1f})  расстояние {math.sqrt(d):.2f}  метка {label}")
 
-    print(f"\nБлижайшие соседи точки ({point[0]:.1f}, {point[1]:.1f}):")
-    for dist, label, p in nearest:
-        print(f"({p[0]:.1f}, {p[1]:.1f})  расстояние {math.sqrt(dist):.2f}  метка {label}")
-
-    votes = Counter()
-    for dist, label, p in nearest:
-        votes[label] += 1
-
-    votes_str = ', '.join([f"{label} – {count}" for label, count in votes.items()])
-    print(f"\nГолоса: {votes_str}")
-
-    result = predict(data, point, k)
-    print(f"Предсказанная метка класса: {result}")
+        print("Предсказанная метка класса:", predict(data, unknown, k))
 
 
 if __name__ == '__main__':
